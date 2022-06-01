@@ -1,0 +1,9 @@
+../Core/Src/Display.c:23:9:DisplayInit	8	static
+../Core/Src/Display.c:69:6:SH1107_UpdateScreen	16	static
+../Core/Src/Display.c:82:6:SH1107_Fill	16	static
+../Core/Src/Display.c:87:6:SH1107_DrawPixel	16	static
+../Core/Src/Display.c:109:6:SH1107_Putc	32	static
+../Core/Src/Display.c:140:6:SH1107_Puts	24	static
+../Core/Src/Display.c:157:6:SH1107_Clear	8	static
+../Core/Src/Display.c:163:6:SH1107_I2C_WriteMulti	296	static
+../Core/Src/Display.c:173:6:SH1107_I2C_Write	32	static
