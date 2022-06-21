@@ -2,52 +2,111 @@
 
 extern I2C_HandleTypeDef hi2c1;
 
-#define Display_Offset const(0x60)		// Default offset of display
-#define SH1107_WRITECOMMAND(command)	SH1107_I2C_Write(OLED_I2C, 0x00, (command))
+#define SH1107_X_OFFSET_LOWER (0x60 & 0x0F)
+#define SH1107_X_OFFSET_UPPER ((0x60 >> 4) & 0x07)
 
-static uint8_t SH1107_Buffer[SH1107WIDTH * SH1107HEIGHT / 8];
+static uint8_t SH1107_Buffer[SH1107_BUFFER_SIZE];
 
 // Private struct for Sh1107 object
 typedef struct {
 	uint16_t CurrentX;
 	uint16_t CurrentY;
-	uint8_t Inverted;
 	uint8_t Initialized;
+	uint8_t Inverted;
+	uint8_t DisplayOn;
 } SH1107_t;
 
 // Private variable
 static SH1107_t SH1107;
 
+// Send a byte to the command register
+void SH1107_WRITECOMMAND(uint8_t byte) {
+	HAL_I2C_Mem_Write(&hi2c1, OLED_I2C, 0x00, 1, &byte, 1, HAL_MAX_DELAY);
+}
+
+// Send data
+void SH1107_WriteData(uint8_t *buffer, size_t buff_size) {
+	HAL_I2C_Mem_Write(&hi2c1, OLED_I2C, 0x40, 1, buffer, buff_size, HAL_MAX_DELAY);
+}
+
+void SH1107_SetDisplayOn(const uint8_t on) {
+    uint8_t value;
+    if (on) {
+        value = 0xAF;   // Display on
+        SH1107.DisplayOn = 1;
+    } else {
+        value = 0xAE;   // Display off
+        SH1107.DisplayOn = 0;
+    }
+    SH1107_WRITECOMMAND(value);
+}
+
+void SH1107_SetContrast(const uint8_t value) {
+    const uint8_t kSetContrastControlRegister = 0x81;
+    SH1107_WRITECOMMAND(kSetContrastControlRegister);
+    SH1107_WRITECOMMAND(value);
+}
+
+// Position the cursor
+void SH1107_SetCursor(uint8_t x, uint8_t y) {
+    SH1107.CurrentX = x;
+    SH1107.CurrentY = y;
+}
+
 // Constructor for the Adafruit FeatherWing 128x64 OLED
 // Initialize Display
 uint8_t DisplayInit(void) {
 
-	//if(HAL_I2C_IsDeviceReady(&hi2c1, OLED_I2C, 1, 20000) != HAL_OK) {
-	//	printf("I2C Not Ready\n");
-	//	return(0);
-	//}
-
+	HAL_Delay(100);
 	if(HAL_I2C_IsDeviceReady(&hi2c1, OLED_I2C, 1, 20000) != HAL_OK) {
-			printf("I2C Not Ready\n");
-			return(0);
-		}
+		return(0);
+	}
 
-	// Init the OLED
-	SH1107_WRITECOMMAND(0xAE00); 						// display off, sleep mode
-	SH1107_WRITECOMMAND(0xDC0100); 						// set display start line 0
-	SH1107_WRITECOMMAND(0x81014F); 						// contrast setting = 0x4f
-	SH1107_WRITECOMMAND(0x2000); 						// vertical addressing mode (POR=0x20)
-	SH1107_WRITECOMMAND(0xA000); 						// segment remap = 1 (POR = 0)
-	SH1107_WRITECOMMAND(0xC000); 						// common output scan direction = 0
-	SH1107_WRITECOMMAND(0xA8017F); 						// multiplex ratio = 128
-	SH1107_WRITECOMMAND(0xD30160); 						// set display offset mode = 0x60
-	SH1107_WRITECOMMAND(0xD50151); 						// divide ratio/oscillator: divide by 2
-	SH1107_WRITECOMMAND(0xD90122); 						// pre-charge/dis-charge period mode: 2DCLKs/2DCKLs
-	SH1107_WRITECOMMAND(0xDB0135); 						// VCOM deselect level = 0.770
-	SH1107_WRITECOMMAND(0xB000); 						// set page address = 0
-	SH1107_WRITECOMMAND(0xA400); 						// display off, retain RAM, normal status
-	SH1107_WRITECOMMAND(0xA600); 						// normal display
-	SH1107_WRITECOMMAND(0xAF00);						// DISPLAY ON
+
+	// SH1107 128x64 has 128 columns and 8 rows/pages. Each row containing 8 bytes ~ 64 total
+	SH1107_SetDisplayOn(0);					// Display Off
+
+	SH1107_WRITECOMMAND(0x00);				// Set lower column address
+	SH1107_WRITECOMMAND(0x00);
+
+	SH1107_WRITECOMMAND(0x10);				// Set upper column address
+	SH1107_WRITECOMMAND(0x40);
+
+	SH1107_WRITECOMMAND(0xB0);				// Set Page address
+	SH1107_WRITECOMMAND(0x00);
+
+	SH1107_WRITECOMMAND(0xDC);				// Set display start line
+	SH1107_WRITECOMMAND(0x00);
+
+	SH1107_WRITECOMMAND(0x81);				// Contract control
+	SH1107_WRITECOMMAND(0x6E);				// 128
+
+	SH1107_WRITECOMMAND(0x20);				// Set memory addressing mode
+	SH1107_WRITECOMMAND(0xA1);				// Set segment remap. Flip Horizontally with A1
+	//SH1107_WRITECOMMAND(0xC0);				// Set COM scan direction. Flip Vertically with C8
+
+	SH1107_WRITECOMMAND(0xA4);				// Normal Display
+	SH1107_WRITECOMMAND(0xA6);
+
+	SH1107_WRITECOMMAND(0xA8);				// Multiplex ratio
+	SH1107_WRITECOMMAND(0x3F);				// Duty cycle =  1/64
+
+	SH1107_WRITECOMMAND(0xD3);				// Set offset
+	SH1107_WRITECOMMAND(0x60);				// Default offset
+
+	SH1107_WRITECOMMAND(0xD5);				// Set OSC Division
+	SH1107_WRITECOMMAND(0x41);
+
+	SH1107_WRITECOMMAND(0xD9);				// Set pre-charge period
+	SH1107_WRITECOMMAND(0x22);
+
+	SH1107_WRITECOMMAND(0xDB);				// Set vcomh
+	SH1107_WRITECOMMAND(0x35);
+
+	SH1107_WRITECOMMAND(0xAD);				// Set charge pump enable
+	SH1107_WRITECOMMAND(0x81);				// Set DC-DC enable (80 disables)
+
+	SH1107_SetDisplayOn(1);					// Display on
 
 	/* Clear screen */
 	SH1107_Fill(SH1107_COLOR_BLACK);
@@ -67,27 +126,26 @@ uint8_t DisplayInit(void) {
 }
 
 void SH1107_UpdateScreen(void) {
-	uint8_t m;
 
-	for (m = 0; m < 8; m++) {
-		SH1107_WRITECOMMAND(0xB0 + m);
-		SH1107_WRITECOMMAND(0x00);
-		SH1107_WRITECOMMAND(0x10);
-
-		/* Write multi data */
-		SH1107_I2C_WriteMulti(OLED_I2C, 0x40, &SH1107_Buffer[SH1107WIDTH * m], SH1107WIDTH);
-	}
+	for(uint8_t i = 0; i < (SH1107HEIGHT/8); i++) {
+	        SH1107_WRITECOMMAND(0xB0 + i); // Set the current RAM page address.
+	        SH1107_WRITECOMMAND(0x00 + SH1107_X_OFFSET_LOWER);
+	        SH1107_WRITECOMMAND(0x10 + SH1107_X_OFFSET_UPPER);
+	        SH1107_WriteData(&SH1107_Buffer[SH1107WIDTH*i],SH1107WIDTH);
+	    }
 }
 
 void SH1107_Fill(SH1107_COLOR_t color) {
-	/* Set memory */
-	memset(SH1107_Buffer, (color == SH1107_COLOR_BLACK) ? 0x00 : 0xFF, sizeof(SH1107_Buffer));
+    /* Set memory */
+    uint32_t i;
+
+    for(i = 0; i < sizeof(SH1107_Buffer); i++) {
+        SH1107_Buffer[i] = (color == SH1107_COLOR_BLACK) ? 0x00 : 0xFF;
+    }
 }
 
 void SH1107_DrawPixel(uint16_t x, uint16_t y, SH1107_COLOR_t color) {
-	if (
-		x >= SH1107WIDTH ||
-		y >= SH1107HEIGHT
+	if (x >= SH1107WIDTH || y >= SH1107HEIGHT
 	) {
 		/* Error */
 		return;
