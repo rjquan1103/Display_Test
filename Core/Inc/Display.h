@@ -1,19 +1,19 @@
 #include "fonts.h"
-#include "stdint.h"
-#include "stdbool.h"
-#include "stdlib.h"
-#include "string.h"
 #include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
 #include "stm32f4xx_hal.h"
+#include "stm32f4xx_hal_conf.h"
+#include "stm32f4xx_hal_def.h"
 
 typedef enum {
 	SH1107_COLOR_BLACK = 0x00, /*!< Black color, no pixel */
-	SH1107_COLOR_WHITE = 0x01  /*!< Pixel is set. Color depends on LCD */
+	SH1107_COLOR_WHITE = 0xFF  /*!< Pixel is set. Color depends on LCD */
 } SH1107_COLOR_t;
 
 /* SH1107 settings */
 /* SH1107 width in pixels */
-#ifndef SH1107_WIDTH
+#ifndef SH1107WIDTH
 #define SH1107WIDTH            128
 #endif
 /* SSD1306 LCD height in pixels */
@@ -21,10 +21,29 @@ typedef enum {
 #define SH1107HEIGHT           64
 #endif
 
+/* SH1107 Buffer Size */
+#ifndef SH1107_BUFFER_SIZE
+#define SH1107_BUFFER_SIZE (SH1107WIDTH * SH1107HEIGHT) / 8
+#endif
+
 // I2C Address of OLED Display
 #ifndef OLED_I2C
-#define OLED_I2C 0x3c
+#define OLED_I2C 0x3C << 1
 #endif
+
+
+void SH1107_WRITECOMMAND(uint8_t byte);
+
+void SH1107_WriteData(uint8_t *buffer, size_t buff_size);
+
+void SH1107_SetDisplayOn(const uint8_t on);
+
+void SH1107_SetContrast(const uint8_t value);
+
+void SH1107_SetCursor(uint8_t x, uint8_t y);
+
+
+
 
 /**
  * @brief  Initializes SH1107 LCD
